@@ -1,5 +1,14 @@
 import numpy as np
 
+def get_fvecs_count(filename):
+    """从 fvecs 文件自动检测向量数量"""
+    fv = np.fromfile(filename, dtype=np.float32)
+    if fv.size == 0:
+        return 0, 0
+    dim = fv.view(np.int32)[0]  # 第一个 int32 是维度
+    n = fv.size // (dim + 1)    # 总元素数 / (维度+1) = 向量数。数据格式根据utils.cpp推断的读取方式
+    return n, dim
+
 def read_groundtruth_file(filename):
     with open(filename, 'rb') as f:
         npts = int.from_bytes(f.read(4), byteorder='little')
@@ -37,7 +46,7 @@ def read_ung_gt(filename, num_queries, K):
     
     return indices, distances
 
-num_queries = 200
+# num_queries = 200
 # num_queries = 354
 
 # dataset = 'sift'
@@ -48,8 +57,10 @@ scenarios = ['and', 'or']
 K = 10
 # for sel in [1, 25, 50, 75]:
 for scenario in scenarios:
-    gt_path = "../data/" + dataset + "/" + dataset + "_gt_" + scenario + ".bin"
-    output_path = "../data/" + dataset + "/" + dataset + "_gt_" + scenario + ".txt"
+    query_file = "../../data/" + dataset + "/" + dataset + "_query_" + scenario + ".fvecs"
+    num_queries, _ = get_fvecs_count(query_file)
+    gt_path = "../../data/" + dataset + "/" + dataset + "_gt_" + scenario + ".bin"
+    output_path = "../../data/" + dataset + "/" + dataset + "_gt_" + scenario + ".txt"
 
     gt, _ = read_ung_gt(gt_path, num_queries, K)
 
