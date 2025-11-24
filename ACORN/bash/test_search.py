@@ -24,7 +24,7 @@ for dataset in datasets:
     # scenarios = ["or"]
     k = 10
     for scenario in scenarios:
-        base_file = "../data/" + dataset + "/" + dataset + "_base.fvecs"
+        base_file = "../../data/" + dataset + "/" + dataset + "_base.fvecs"
         csv_file_path = f'../data/result/ACORN/{dataset}/representative_parameters.csv'  # 修改为你的 CSV 文件路径
         # parameter_combinations = read_parameters_from_csv(csv_file_path)
         
@@ -32,11 +32,11 @@ for dataset in datasets:
         parameter_combinations.append((32, 64, 72))
 
         index_path = "../data/index_files/ACORN"
-        base_label_file = "../data/" + dataset + "/label_base.txt"
-        query_file = "../data/" + dataset + "/" + dataset + "_query_" + scenario + ".fvecs"
-        query_label_file = "../data/" + dataset + "/" + dataset + "_query_" + scenario + ".txt"
+        base_label_file = "../../data/" + dataset + "/label_base.txt"
+        query_file = "../../data/" + dataset + "/" + dataset + "_query_" + scenario + ".fvecs"
+        query_label_file = "../../data/" + dataset + "/" + dataset + "_query_" + scenario + ".txt"
         output_path = "../data/result/ACORN_gamma/" + dataset + "/" + scenario
-        gt_path = "../data/" + dataset + "/" + dataset + "_gt_" + scenario + ".txt"
+        gt_path = "../../data/" + dataset + "/" + dataset + "_gt_" + scenario + ".txt"
 
         # Loop through parameter combinations
         for M, M_beta, gamma_val in parameter_combinations:
@@ -47,7 +47,7 @@ for dataset in datasets:
 
             N = map_N[dataset]
             # Construct command
-            cmd = ['./build/demos/search_acorn_index_parse', str(N), str(gamma_val),
+            cmd = ['../build/demos/search_acorn_index_parse', str(N), str(gamma_val),
                     str(dataset), str(M), str(M_beta), str(index_path), str(scenario), str(output_path), 
                     str(base_file), str(base_label_file), str(query_file), str(query_label_file), str(gt_path), str(k)]
 

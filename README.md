@@ -146,7 +146,16 @@ Our code is primarily concentrated in three files: `build_gamma_index`, `search_
 ```bash
 cd ACORN/
 
-cmake -DFAISS_ENABLE_GPU=OFF -DFAISS_ENABLE_PYTHON=OFF -DBUILD_TESTING=ON -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release -B build
+# 重新配置，指定 Boost 路径
+cmake -DFAISS_ENABLE_GPU=OFF \
+      -DFAISS_ENABLE_PYTHON=OFF \
+      -DBUILD_TESTING=ON \
+      -DBUILD_SHARED_LIBS=ON \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DBoost_ROOT=$CONDA_PREFIX \
+      -DBoost_INCLUDE_DIR=$CONDA_PREFIX/include \
+      -DBoost_LIBRARY_DIR=$CONDA_PREFIX/lib \
+      -B build
 
 make -C build -j faiss
 make -C build utils # ignoring error of undifined reference to main

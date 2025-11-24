@@ -56,6 +56,9 @@ add_library(UNG STATIC ${UNG_SOURCES})
 
 target_compile_options(UNG PRIVATE -mavx2)
 
+find_package(Boost REQUIRED COMPONENTS filesystem)
+target_link_libraries(UNG PUBLIC Boost::filesystem)
+
 add_subdirectory(demos)
 # target_link_libraries(search_acorn_index_parse PUBLIC UNG)
 add_subdirectory(benchs)

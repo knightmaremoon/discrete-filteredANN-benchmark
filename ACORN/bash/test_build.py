@@ -20,7 +20,7 @@ map_N = {"yfcc": 1000000, "arxiv": 132687, "LAION1M": 1000448, "tripclick": 1055
 # datasets = ["LAION1M", "tripclick"]
 datasets = ["words"]
 for dataset in datasets:
-    base_file = "../data/" + dataset + "/" + dataset + "_base.fvecs"
+    base_file = "../../data/" + dataset + "/" + dataset + "_base.fvecs"
     # csv_file_path = f'../data/result/ACORN/{dataset}/representative_parameters_1.csv'  # 修改为你的 CSV 文件路径
     # parameter_combinations = read_parameters_from_csv(csv_file_path)
     parameter_combinations = []
@@ -39,7 +39,7 @@ for dataset in datasets:
         os.makedirs(output_dir, exist_ok=True)
 
         # Construct command
-        cmd = ['./build/demos/build_gamma_index', str(map_N[dataset]), str(gamma_val),
+        cmd = ['../build/demos/build_gamma_index', str(map_N[dataset]), str(gamma_val),
                 base_file, str(M), str(M_beta), output_path_base, dataset]
 
         env = os.environ.copy()
