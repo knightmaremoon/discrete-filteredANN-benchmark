@@ -394,7 +394,8 @@ void write_results(
         const std::vector<double>& recall_at_10_gamma,
         double bf_time,
         int num_bf,
-        int num_gs) {
+        int num_gs,
+        size_t index_size) {
     std::ofstream output_file(output_path);
     if (!output_file.is_open()) {
         std::cerr << "Error: Cannot open output file: " << output_path
@@ -416,7 +417,7 @@ void write_results(
     output_file.close();
 
     std::ofstream output_csv_file(output_csv);
-    output_csv_file << "L,Cmps,QPS,Recall,QPS_filter" << std::endl;
+    output_csv_file << "L,Cmps,QPS,Recall,QPS_filter,Index_size_MB" << std::endl;
     for (auto i = 0; i < search_lists.size(); i++) {
         double total_recall = (recall_at_10_gamma[i] * num_gs + 1.0 * num_bf) /
                 static_cast<double>(num_gs + num_bf);
@@ -430,7 +431,7 @@ void write_results(
             total_time = bf_time / 1000.0;
         double total_qps = static_cast<double>(num_gs + num_bf) / total_time;
         output_csv_file << search_lists[i] << "," << dist_cmps_gamma[i] << ","
-                        << total_qps << "," << total_recall << "," << qps_gamma_filter[i] << std::endl;
+                        << total_qps << "," << total_recall << "," << qps_gamma_filter[i] << "," << index_size / (1024.0 * 1024.0) << std::endl;
     }
 
     output_csv_file.close();
@@ -698,6 +699,17 @@ int main(int argc, char* argv[]) {
     auto& hybrid_index = *dynamic_cast<faiss::IndexACORNFlat*>(
             faiss::read_index(hybrid_index_file.c_str()));
 
+    // 获取索引文件大小
+    struct stat st;
+    size_t index_size = 0;
+    if (stat(hybrid_index_file.c_str(), &st) == 0) {
+        index_size = st.st_size;
+        std::cout << "Index file size: " << st.st_size << " bytes ("
+                  << st.st_size / (1024.0 * 1024.0) << " MB)" << std::endl;
+    } else {
+        std::cerr << "Warning: Could not get index file size" << std::endl;
+    }
+
     std::vector<char> filter_ids_map_fake(nq * N);
     double t1_filter = elapsed();
     // only for counting time
@@ -747,7 +759,8 @@ int main(int argc, char* argv[]) {
             recall_at_10_gamma,
             bf_time,
             num_bf,
-            num_gs);
+            num_gs,
+            index_size);
 
     delete[] xq;
     delete[] xq_bf;
