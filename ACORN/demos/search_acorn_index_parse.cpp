@@ -22,6 +22,7 @@
 #include <thread>
 #include <vector>
 #include <bitset>
+#include <sys/resource.h>
 
 #include <faiss/Index.h>
 #include <faiss/IndexACORN.h>
@@ -213,6 +214,23 @@ void create_filter_map_fake(
     }
 }
 
+
+// 获取当前进程的内存使用（KB）- 读取 /proc/self/status
+long get_peak_memory_usage() {
+    std::ifstream status_file("/proc/self/status");
+    std::string line;
+    while (std::getline(status_file, line)) {
+        if (line.find("VmHWM:") == 0) {
+            // 格式: "VmHWM:    12345 kB"
+            std::istringstream iss(line);
+            std::string key, value, unit;
+            iss >> key >> value >> unit;
+            return std::stol(value);
+        }
+    }
+    return 0;
+}
+
 // 执行搜索操作并收集结果
 void perform_search(
         faiss::IndexACORNFlat& index,
@@ -226,6 +244,7 @@ void perform_search(
         std::vector<double>& qps_filter_list,
         std::vector<double>& dist_cmps_list,
         std::vector<double>& recall_list,
+        std::vector<long>& memory_list,
         const std::vector<int>& parse) {
     for (auto& ef_search : search_lists) {
         index.acorn.efSearch = ef_search;
@@ -235,10 +254,17 @@ void perform_search(
         std::vector<faiss::idx_t> nns2(k * nq);
         std::vector<float> dis2(k * nq);
 
+        // 获取搜索前的内存使用
+        long peak_before = get_peak_memory_usage();
+        
         double t1 = elapsed();
         index.search(
                 nq, xq, k, dis2.data(), nns2.data(), filter_ids_map.data());
         double t2 = elapsed();
+        
+        // 获取搜索后的内存使用
+        long peak_after = get_peak_memory_usage();
+        long memory_used = (peak_after > peak_before) ? (peak_after - peak_before) : 0;
 
         double search_time = t2 - t1;
         double search_time_filter = search_time + filter_time;
@@ -249,10 +275,12 @@ void perform_search(
         std::cout << "Search time: " << search_time
                   << "\nSearch time with filter: " << search_time_filter
                   << "\nQPS: " << qps << "\nQPS with filter: " << qps_filter
+                  << "\nMemory used: " << memory_used << " KB"
                   << std::endl;
 
         qps_list.push_back(qps);
         qps_filter_list.push_back(qps_filter);
+        memory_list.push_back(memory_used);
 
         double recall = compute_recall(gt, nns2, nq, parse, k);
         recall_list.push_back(recall);
@@ -395,7 +423,8 @@ void write_results(
         double bf_time,
         int num_bf,
         int num_gs,
-        size_t index_size) {
+        size_t index_size,
+        const std::vector<long>& memory_list) {
     std::ofstream output_file(output_path);
     if (!output_file.is_open()) {
         std::cerr << "Error: Cannot open output file: " << output_path
@@ -417,7 +446,7 @@ void write_results(
     output_file.close();
 
     std::ofstream output_csv_file(output_csv);
-    output_csv_file << "L,Cmps,QPS,Recall,QPS_filter,Index_size_MB" << std::endl;
+    output_csv_file << "L,Cmps,QPS,Recall,QPS_filter,Index_size_MB,Search_memory_MB" << std::endl;
     for (auto i = 0; i < search_lists.size(); i++) {
         double total_recall = (recall_at_10_gamma[i] * num_gs + 1.0 * num_bf) /
                 static_cast<double>(num_gs + num_bf);
@@ -430,8 +459,9 @@ void write_results(
         else
             total_time = bf_time / 1000.0;
         double total_qps = static_cast<double>(num_gs + num_bf) / total_time;
+        double memory_mb = memory_list[i] / 1024.0;
         output_csv_file << search_lists[i] << "," << dist_cmps_gamma[i] << ","
-                        << total_qps << "," << total_recall << "," << qps_gamma_filter[i] << "," << index_size / (1024.0 * 1024.0) << std::endl;
+                        << total_qps << "," << total_recall << "," << qps_gamma_filter[i] << "," << index_size / (1024.0 * 1024.0) << "," << memory_mb << std::endl;
     }
 
     output_csv_file.close();
@@ -729,7 +759,7 @@ int main(int argc, char* argv[]) {
 
     std::vector<double> qps_gamma, qps_gamma_filter, dist_cmps_gamma,
             recall_at_10_gamma;
-
+    std::vector<long> memory_gamma;
     std::cout << "=== Performing search with gamma=" << gamma
               << " ===" << std::endl;
     perform_search(
@@ -744,6 +774,7 @@ int main(int argc, char* argv[]) {
             qps_gamma_filter,
             dist_cmps_gamma,
             recall_at_10_gamma,
+            memory_gamma,
             parse);
 
     double bf_time = perform_brute_force_search(
@@ -760,7 +791,8 @@ int main(int argc, char* argv[]) {
             bf_time,
             num_bf,
             num_gs,
-            index_size);
+            index_size,
+            memory_gamma);
 
     delete[] xq;
     delete[] xq_bf;
