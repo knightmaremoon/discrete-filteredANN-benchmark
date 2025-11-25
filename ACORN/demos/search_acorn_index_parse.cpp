@@ -424,7 +424,8 @@ void write_results(
         int num_bf,
         int num_gs,
         size_t index_size,
-        const std::vector<long>& memory_list) {
+        const std::vector<long>& memory_list,
+        double construction_time) {
     std::ofstream output_file(output_path);
     if (!output_file.is_open()) {
         std::cerr << "Error: Cannot open output file: " << output_path
@@ -446,7 +447,7 @@ void write_results(
     output_file.close();
 
     std::ofstream output_csv_file(output_csv);
-    output_csv_file << "L,Cmps,QPS,Recall,QPS_filter,Index_size_MB,Search_memory_MB" << std::endl;
+    output_csv_file << "L,Cmps,QPS,Recall,QPS_filter,Index_size_MB,Search_memory_MB,Construction_time_s" << std::endl;
     for (auto i = 0; i < search_lists.size(); i++) {
         double total_recall = (recall_at_10_gamma[i] * num_gs + 1.0 * num_bf) /
                 static_cast<double>(num_gs + num_bf);
@@ -461,7 +462,7 @@ void write_results(
         double total_qps = static_cast<double>(num_gs + num_bf) / total_time;
         double memory_mb = memory_list[i] / 1024.0;
         output_csv_file << search_lists[i] << "," << dist_cmps_gamma[i] << ","
-                        << total_qps << "," << total_recall << "," << qps_gamma_filter[i] << "," << index_size / (1024.0 * 1024.0) << "," << memory_mb << std::endl;
+                        << total_qps << "," << total_recall << "," << qps_gamma_filter[i] << "," << index_size / (1024.0 * 1024.0) << "," << memory_mb << "," << construction_time << std::endl;
     }
 
     output_csv_file.close();
@@ -740,6 +741,22 @@ int main(int argc, char* argv[]) {
         std::cerr << "Warning: Could not get index file size" << std::endl;
     }
 
+    // 读取构建时间
+    double construction_time = 0.0;
+    std::stringstream time_file_stream;
+    time_file_stream << "../data/construction_times/" << dataset 
+                    << "/M=" << M << "_Mb=" << M_beta 
+                    << "_gamma=" << gamma << ".time";
+    std::string time_file = time_file_stream.str();
+    std::ifstream time_in(time_file);
+    if (time_in.is_open()) {
+        time_in >> construction_time;
+        time_in.close();
+        std::cout << "Construction time: " << construction_time << " seconds" << std::endl;
+    } else {
+        std::cerr << "Warning: Could not read construction time from " << time_file << std::endl;
+    }
+
     std::vector<char> filter_ids_map_fake(nq * N);
     double t1_filter = elapsed();
     // only for counting time
@@ -792,7 +809,8 @@ int main(int argc, char* argv[]) {
             num_bf,
             num_gs,
             index_size,
-            memory_gamma);
+            memory_gamma,
+            construction_time);
 
     delete[] xq;
     delete[] xq_bf;

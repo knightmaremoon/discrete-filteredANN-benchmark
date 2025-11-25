@@ -8,6 +8,7 @@
 #include <faiss/IndexFlat.h>
 #include <faiss/IndexHNSW.h>
 #include <faiss/index_io.h>
+#include <iomanip>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -63,6 +64,29 @@ int main(int argc, char* argv[]) {
                         << "_Mb=" << M_beta << "_gamma=" << gamma << ".json";
         std::string filepath = filepath_stream.str();
         write_index(&hybrid_index, filepath.c_str());
+
+        // 计算并保存构建时间到日志之外的文件（用于作为metrics的一部分）
+        double construction_time = t2 - t1;  // 这里定义变量
+        // 构建时间文件路径：../data/construction_times/{dataset}/M={M}_Mb={M_beta}_gamma={gamma}.time
+        std::stringstream time_file_stream;
+        time_file_stream << "../data/construction_times/" << dataset 
+                        << "/M=" << M << "_Mb=" << M_beta 
+                        << "_gamma=" << gamma << ".time";
+        std::string time_file = time_file_stream.str();
+        
+        // 创建目录（提取目录路径）
+        std::string time_dir = time_file.substr(0, time_file.find_last_of('/'));
+        std::string mkdir_cmd = "mkdir -p " + time_dir;
+        system(mkdir_cmd.c_str());
+        
+        std::ofstream time_out(time_file);
+        if (time_out.is_open()) {
+            time_out << std::fixed << std::setprecision(6) << construction_time << std::endl;
+            time_out.close();
+            std::cout << "Construction time saved to: " << time_file << std::endl;
+        } else {
+            std::cerr << "Warning: Could not write construction time to " << time_file << std::endl;
+        }
     }
 
     std::cout << std::endl;
