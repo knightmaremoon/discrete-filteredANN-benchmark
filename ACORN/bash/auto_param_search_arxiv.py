@@ -170,6 +170,9 @@ def check_data_files():
 
 def build_index(M, M_beta, gamma):
     """构建索引"""
+    # Ensure base index directory exists for ACORN to write index files
+    os.makedirs(os.path.join(INDEX_DIR, DATASET), exist_ok=True)
+
     dir_name = f"M={M}_Mb={M_beta}_gamma={gamma}"
     index_dir = os.path.join(INDEX_DIR, DATASET, dir_name)
     os.makedirs(index_dir, exist_ok=True)

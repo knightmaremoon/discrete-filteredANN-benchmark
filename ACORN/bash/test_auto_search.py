@@ -84,6 +84,7 @@ def test_full_workflow():
     log("\n【步骤1】测试构建索引...")
 
     os.makedirs(INDEX_DIR, exist_ok=True)
+    os.makedirs(f"{INDEX_DIR}/{DATASET}", exist_ok=True)  # Create arxiv subdirectory
     build_log = f"{INDEX_DIR}/build.log"
 
     build_cmd = [
