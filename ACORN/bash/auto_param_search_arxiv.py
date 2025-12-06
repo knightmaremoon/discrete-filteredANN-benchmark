@@ -76,9 +76,8 @@ def init_summary_file():
             writer = csv.writer(f)
             writer.writerow([
                 'M', 'M_beta', 'gamma', 'scenario',
-                'build_time_s', 'search_time_ms',
-                'recall@1', 'recall@10', 'recall@100',
-                'index_size_mb', 'status', 'timestamp'
+                'build_time_s', 'qps', 'qps_no_filter',
+                'recall@10', 'index_size_mb', 'status', 'timestamp'
             ])
 
 def parse_build_log(log_file):
@@ -93,43 +92,30 @@ def parse_build_log(log_file):
         pass
     return 0.0
 
-def parse_search_log(log_file):
-    """解析搜索日志，提取性能指标"""
+def parse_search_csv(csv_file):
+    """从CSV文件提取性能指标（最优Recall值）"""
     try:
-        with open(log_file, 'r') as f:
-            content = f.read()
+        import csv
+        with open(csv_file, 'r') as f:
+            reader = csv.DictReader(f)
+            best_recall = 0.0
+            best_qps = 0.0
+            best_qps_no_filter = 0.0
 
-            metrics = {
-                'search_time_ms': 0.0,
-                'recall@1': 0.0,
-                'recall@10': 0.0,
-                'recall@100': 0.0
-            }
+            for row in reader:
+                recall = float(row['Recall'])
+                if recall > best_recall:
+                    best_recall = recall
+                    best_qps = float(row['QPS'])
+                    best_qps_no_filter = float(row['QPS_no_filter'])
 
-            for line in content.split('\n'):
-                if 'Average search time' in line or 'Query time' in line:
-                    # 提取时间（可能是ms或s）
-                    parts = line.split(':')[-1].strip().split()
-                    if parts:
-                        metrics['search_time_ms'] = float(parts[0])
-
-                elif 'Recall@1' in line or 'R@1' in line:
-                    parts = line.split(':')[-1].strip().split()
-                    if parts:
-                        metrics['recall@1'] = float(parts[0])
-
-                elif 'Recall@10' in line or 'R@10' in line:
-                    parts = line.split(':')[-1].strip().split()
-                    if parts:
-                        metrics['recall@10'] = float(parts[0])
-
-                elif 'Recall@100' in line or 'R@100' in line:
-                    parts = line.split(':')[-1].strip().split()
-                    if parts:
-                        metrics['recall@100'] = float(parts[0])
-
-            return metrics
-    except:
+            if best_recall > 0:
+                return {
+                    'recall@10': best_recall,
+                    'qps': best_qps,
+                    'qps_no_filter': best_qps_no_filter
+                }
+    except Exception as e:
         pass
     return None
 
@@ -216,11 +202,11 @@ def build_index(M, M_beta, gamma):
 
 def search_index(M, M_beta, gamma, scenario):
     """测试索引搜索性能"""
-    dir_name = f"M={M}_Mb={M_beta}_gamma={gamma}"
-    result_dir = os.path.join(RESULTS_DIR, DATASET, scenario, dir_name)
-    os.makedirs(result_dir, exist_ok=True)
+    # 输出路径应该包含dataset和scenario（与C++程序期望一致）
+    output_path = os.path.join(RESULTS_DIR, DATASET, scenario)
+    os.makedirs(output_path, exist_ok=True)
 
-    log_file = os.path.join(result_dir, 'search.log')
+    log_file = os.path.join(output_path, f'M={M}_Mb={M_beta}_gamma={gamma}_search.log')
 
     query_file = f"{DATA_DIR}/arxiv_query_{scenario}.fvecs"
     query_label_file = f"{DATA_DIR}/arxiv_query_{scenario}.txt"
@@ -229,7 +215,7 @@ def search_index(M, M_beta, gamma, scenario):
     cmd = [
         '../build/demos/search_acorn_index',
         str(N), str(gamma), DATASET,
-        str(M), str(M_beta), INDEX_DIR, scenario, RESULTS_DIR,
+        str(M), str(M_beta), INDEX_DIR, scenario, output_path,  # 传递完整路径
         BASE_FILE, BASE_LABEL_FILE,
         query_file, query_label_file, gt_path, str(K)
     ]
@@ -243,8 +229,9 @@ def search_index(M, M_beta, gamma, scenario):
                          stdout=f, stderr=subprocess.STDOUT,
                          timeout=1800)
 
-        # 解析性能指标
-        metrics = parse_search_log(log_file)
+        # 从CSV文件解析性能指标
+        csv_file = os.path.join(output_path, f"M={M}_M_beta={M_beta}_gamma={gamma}_result.csv")
+        metrics = parse_search_csv(csv_file)
         return True, metrics
 
     except subprocess.TimeoutExpired:
@@ -344,7 +331,7 @@ def main():
 
             if success and metrics:
                 log(f"   ✅ 测试成功:")
-                log(f"      查询时间: {metrics['search_time_ms']:.2f}ms")
+                log(f"      QPS (with filter): {metrics['qps']:.2f}")
                 log(f"      Recall@10: {metrics['recall@10']:.4f}")
 
                 # 记录结果
@@ -353,10 +340,9 @@ def main():
                     writer.writerow([
                         M, M_beta, gamma, scenario,
                         f"{build_time:.2f}",
-                        f"{metrics['search_time_ms']:.2f}",
-                        f"{metrics['recall@1']:.4f}",
+                        f"{metrics['qps']:.2f}",
+                        f"{metrics['qps_no_filter']:.2f}",
                         f"{metrics['recall@10']:.4f}",
-                        f"{metrics['recall@100']:.4f}",
                         f"{index_size:.1f}",
                         'success',
                         datetime.now().isoformat()
@@ -371,7 +357,7 @@ def main():
                     writer = csv.writer(f)
                     writer.writerow([
                         M, M_beta, gamma, scenario,
-                        0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0,
                         'failed',
                         datetime.now().isoformat()
                     ])
@@ -411,18 +397,18 @@ def analyze_results():
             # 按recall@10排序，取前5
             top5 = scenario_df.nlargest(5, 'recall@10')
 
-            log(f"  {'M':>3} {'Mb':>3} {'γ':>2}  {'R@10':>7}  {'时间(ms)':>9}  {'内存(MB)':>9}")
+            log(f"  {'M':>3} {'Mb':>3} {'γ':>2}  {'R@10':>7}  {'QPS':>9}  {'内存(MB)':>9}")
             log("  " + "-" * 50)
 
             for _, row in top5.iterrows():
                 log(f"  {int(row['M']):>3} {int(row['M_beta']):>3} {int(row['gamma']):>2}  "
-                    f"{row['recall@10']:>7.4f}  {row['search_time_ms']:>9.2f}  "
+                    f"{row['recall@10']:>7.4f}  {row['qps']:>9.2f}  "
                     f"{row['index_size_mb']:>9.1f}")
 
-            # 推荐最优（recall最高且时间合理）
+            # 推荐最优（recall最高且QPS合理）
             best = top5.iloc[0]
             log(f"\n  🏆 推荐: M={int(best['M'])}, M_beta={int(best['M_beta'])}, gamma={int(best['gamma'])}")
-            log(f"     Recall@10={best['recall@10']:.4f}, 时间={best['search_time_ms']:.2f}ms")
+            log(f"     Recall@10={best['recall@10']:.4f}, QPS={best['qps']:.2f}")
 
     except ImportError:
         log("提示：安装pandas可以自动分析最优参数")
