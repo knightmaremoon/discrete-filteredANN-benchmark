@@ -1,301 +1,124 @@
-# ACORN自动参数搜索 - Arxiv数据集
+# ACORN 自动参数搜索 - Arxiv数据集
 
-## 🎯 功能
+## 🚨 重要修复（2025-12-06）
 
-这个脚本实现了**一体化的参数搜索**：
-1. ✅ 自动构建所有参数组合的索引
-2. ✅ 自动测试所有场景的搜索性能
-3. ✅ 自动找出最优参数
-4. ✅ 断点续传（可随时中断和恢复）
-5. ✅ 详细的进度跟踪和结果记录
+**问题发现**：之前运行的程序所有Recall都显示为0.0000，这是因为：
+- `search_acorn_index` 程序将结果写入CSV文件（`M={M}_M_beta={M_beta}_gamma={gamma}_result.csv`）
+- 但Python脚本试图从日志文件解析Recall，导致始终读取不到数据
 
-## 🚀 快速开始
+**已修复**：
+1. 新增 `parse_search_csv()` 函数从CSV文件正确读取Recall/QPS数据
+2. 修正 `search_index()` 的output_path参数传递
+3. 更新summary CSV列：`search_time_ms` -> `qps`, `qps_no_filter`
 
-### 1. 检查数据文件
+## 🔄 如何重新启动搜索
 
-确保以下文件存在（路径相对于ACORN目录）：
-
-```
-data/arxiv/
-├── arxiv_base.fvecs              # 基础向量数据
-├── label_base.txt                # 基础数据标签
-├── arxiv_query_equal.fvecs       # Equal查询向量
-├── arxiv_query_equal.txt         # Equal查询标签
-├── arxiv_gt_equal.txt            # Equal ground truth
-├── arxiv_query_or.fvecs          # OR查询向量
-├── arxiv_query_or.txt            # OR查询标签
-├── arxiv_gt_or.txt               # OR ground truth
-├── arxiv_query_and.fvecs         # AND查询向量
-├── arxiv_query_and.txt           # AND查询标签
-└── arxiv_gt_and.txt              # AND ground truth
-```
-
-⚠️ **重要**: 如果你的数据路径不同，请修改脚本中的 `DATA_DIR` 变量！
-
-### 2. 确保编译了ACORN
+### 在weirdo节点上执行：
 
 ```bash
-cd ACORN
-mkdir -p build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release ..
-make -j
-cd ..
-```
+# 1. 停止当前运行（如果还在运行）
+# 按 Ctrl+C 停止前台进程
 
-### 3. 运行参数搜索
+# 2. 拉取最新代码
+cd /home/remote/u7905817/benchmarks/discrete/ACORN
+git pull origin master
 
-```bash
-cd ACORN/bash
+# 3. 进入bash目录
+cd bash
+
+# 4. （可选）清理之前的错误数据
+rm -f ../data/param_search_arxiv/summary.csv
+rm -f ../data/param_search_arxiv/progress.json
+
+# 5. 重新启动参数搜索
 python auto_param_search_arxiv.py
 ```
 
-## 📊 输出文件
+### 为什么要清理数据？
 
-```
-data/param_search_arxiv/
-├── summary.csv           # ← 主要结果文件（Excel可打开）
-├── progress.json         # 进度文件（用于断点续传）
-├── indices/              # 索引文件目录
-│   └── arxiv/
-│       ├── M=12_Mb=16_gamma=1/
-│       ├── M=16_Mb=24_gamma=2/
-│       └── ...
-└── results/              # 详细搜索结果
-    └── arxiv/
-        ├── equal/
-        ├── or/
-        └── and/
+- `summary.csv`：包含错误的Recall=0数据，需要重新生成
+- `progress.json`：可以保留（这样已完成的构建不会重复），但如果想完全重新开始就删除
+
+### 如果想保留已构建的索引，只重新测试：
+
+只删除summary.csv，保留progress.json：
+```bash
+rm -f ../data/param_search_arxiv/summary.csv
+# 索引文件会被检测到并跳过构建
+# 但搜索会重新执行，这次能正确读取Recall
 ```
 
-### summary.csv 格式
+## 📊 预期输出
 
-| M | M_beta | gamma | scenario | build_time_s | search_time_ms | recall@1 | recall@10 | recall@100 | index_size_mb | status |
-|---|--------|-------|----------|--------------|----------------|----------|-----------|------------|---------------|--------|
-| 16 | 32 | 1 | equal | 45.2 | 12.5 | 0.85 | 0.95 | 0.99 | 120.5 | success |
-| 16 | 32 | 1 | or | 45.2 | 15.3 | 0.82 | 0.93 | 0.98 | 120.5 | success |
+修复后，你应该看到类似这样的输出：
 
-## ⚙️ 配置参数
-
-在脚本顶部可以修改：
-
-```python
-# 参数范围
-Ms = list(range(12, 49, 4))      # [12, 16, 20, ..., 48]
-M_betas = list(range(12, 65, 4))  # [12, 16, 20, ..., 64]
-gammas = [1, 2, 4]                # gamma值
-
-# 数据路径（根据实际情况修改）
-DATA_DIR = "../data/arxiv"
+```
+[20:05:37]    ✅ 测试成功:
+[20:05:37]       QPS (with filter): 1234.56
+[20:05:37]       Recall@10: 0.8250
 ```
 
-### 快速测试（小范围参数）
-
-```python
-# 修改为：
-Ms = [16, 24, 32]
-M_betas = [32, 48, 64]
-gammas = [1, 2]
+而不是：
+```
+[20:05:37]       Recall@10: 0.0000  # ❌ 错误！
 ```
 
-这样只测试 3×3×2 = 18个组合，每个3个场景 = 54个任务，约30分钟完成。
+## 🏃 后台运行（推荐）
 
-## 🔄 断点续传
-
-如果运行中断（Ctrl+C或崩溃），直接重新运行即可：
+如果想在后台运行：
 
 ```bash
+# 使用screen或tmux（推荐）
+screen -S acorn_search
+cd /home/remote/u7905817/benchmarks/discrete/ACORN/bash
 python auto_param_search_arxiv.py
+
+# 按Ctrl+A然后D detach
+# 重新连接: screen -r acorn_search
 ```
 
-脚本会自动：
-- ✅ 读取 `progress.json`
-- ✅ 跳过已完成的任务
-- ✅ 从中断处继续
-
-## 📈 查看结果
-
-### 方法1: 脚本自动分析（需要pandas）
-
+或使用nohup：
 ```bash
-pip install pandas
-python auto_param_search_arxiv.py  # 结束时会自动显示最优参数
-```
-
-### 方法2: Excel查看
-
-```bash
-# 在Excel中打开
-open data/param_search_arxiv/summary.csv
-```
-
-按 `recall@10` 降序排序，找到最优参数。
-
-### 方法3: Python分析
-
-```python
-import pandas as pd
-
-df = pd.read_csv('data/param_search_arxiv/summary.csv')
-df = df[df['status'] == 'success']
-
-# 查看equal场景的最优参数
-equal_df = df[df['scenario'] == 'equal']
-best = equal_df.nlargest(5, 'recall@10')
-print(best[['M', 'M_beta', 'gamma', 'recall@10', 'search_time_ms']])
-```
-
-## 🎯 预期运行时间
-
-基于默认配置（~70个参数组合 × 3个场景）：
-
-| 阶段 | 时间估算 |
-|------|----------|
-| 构建索引 | ~70组合 × 2分钟 = 2.5小时 |
-| 搜索测试 | ~210任务 × 1分钟 = 3.5小时 |
-| **总计** | **约6小时** |
-
-💡 建议在云端后台运行：
-
-```bash
-# 使用nohup后台运行
-nohup python auto_param_search_arxiv.py > search.log 2>&1 &
-
-# 查看实时日志
+nohup python -u auto_param_search_arxiv.py > search.log 2>&1 &
 tail -f search.log
+```
 
+## 📈 监控进度
+
+```bash
 # 查看进度
-cat data/param_search_arxiv/progress.json
+cat /home/remote/u7905817/benchmarks/discrete/ACORN/data/param_search_arxiv/progress.json
+
+# 查看summary（搜索开始后会创建）
+tail -20 /home/remote/u7905817/benchmarks/discrete/ACORN/data/param_search_arxiv/summary.csv
 ```
 
-## ❓ 常见问题
+## ⏱️ 预计时间
 
-### Q1: 数据文件路径不对怎么办？
+- 总任务：132个（44个参数组合 × 3个场景）
+- 每个构建：2-3分钟
+- 每个搜索：<1分钟
+- **总耗时：约10-14小时**
 
-修改脚本中的 `DATA_DIR` 变量：
+## 📝 参数配置
+
+当前搜索的参数范围（已优化为能达到Recall>0.80的范围）：
 
 ```python
-# 如果数据在 /home/user/datasets/arxiv/
-DATA_DIR = "/home/user/datasets/arxiv"
+Ms = [32, 48, 64]                   # 3个值
+M_betas = [48, 64, 96, 128]         # 4个值
+gammas = [4, 8, 12, 24]             # 4个值
+SCENARIOS = ['equal', 'or', 'and']  # 3个场景
 ```
 
-### Q2: 想只测试某个场景怎么办？
+约束：`M_beta >= M` 且 `M_beta <= 2*M*gamma`
 
-修改 `SCENARIOS`：
+有效组合：44个
 
-```python
-# 只测试equal
-SCENARIOS = ["equal"]
+## 🎯 下一步
 
-# 或只测试or和and
-SCENARIOS = ["or", "and"]
-```
-
-### Q3: 磁盘空间不够怎么办？
-
-索引文件会占用较大空间。可以：
-
-**选项1**: 测试完一个参数就删除索引
-
-```python
-# 在search_index函数后添加：
-if cleanup_index:
-    index_path = f"{INDEX_DIR}/{DATASET}/hybrid_M={M}_Mb={M_beta}_gamma={gamma}.json"
-    os.remove(index_path)
-```
-
-**选项2**: 减少参数范围（快速测试）
-
-### Q4: 如何只重新测试搜索性能？
-
-如果索引已经构建好，只想重新测试搜索：
-
-```python
-# 删除进度文件中的搜索任务
-# 但保留构建任务
-# 然后重新运行
-```
-
-### Q5: 构建或搜索失败怎么办？
-
-检查日志文件：
-
-```bash
-# 构建日志
-cat data/param_search_arxiv/indices/arxiv/M=16_Mb=32_gamma=1/build.log
-
-# 搜索日志
-cat data/param_search_arxiv/results/arxiv/equal/M=16_Mb=32_gamma=1/search.log
-```
-
-## 🔧 与原始两阶段流程对比
-
-### 原始流程（手动）
-
-```bash
-# 步骤1: 构建所有索引
-python traverse_param_space.py
-
-# 步骤2: 测试所有场景
-python search_in_subspace.py
-
-# 步骤3: 汇总结果
-python combine_search_result.py
-
-# 步骤4: 手动分析找最优参数
-```
-
-### 新流程（自动）
-
-```bash
-# 一步完成
-python auto_param_search_arxiv.py
-
-# 自动输出最优参数
-```
-
-## 📝 高级用法
-
-### 自定义参数约束
-
-```python
-# 在脚本中修改约束条件
-for M in Ms:
-    for M_beta in M_betas:
-        # 原约束
-        if M_beta < M:
-            continue
-
-        for gamma in gammas:
-            # 原约束
-            if M_beta > 2 * M * gamma:
-                continue
-
-            # 添加自定义约束
-            if M < 20 and gamma > 2:  # 例如：M小于20时不测gamma>2
-                continue
-```
-
-### 并行运行多个参数
-
-```bash
-# 分成3个任务并行（需要手动分配参数范围）
-
-# 终端1: 测试 M=12-24
-# 修改脚本: Ms = list(range(12, 29, 4))
-python auto_param_search_arxiv.py
-
-# 终端2: 测试 M=28-40
-# 修改脚本: Ms = list(range(28, 45, 4))
-python auto_param_search_arxiv.py
-
-# 终端3: 测试 M=44-48
-# 修改脚本: Ms = list(range(44, 49, 4))
-python auto_param_search_arxiv.py
-```
-
-## 📧 问题反馈
-
-如果遇到问题，请提供：
-1. 错误日志（search.log）
-2. 数据文件列表（ls -la data/arxiv/）
-3. 进度文件内容（cat data/param_search_arxiv/progress.json）
+参数搜索完成后：
+1. 分析结果，汇总所有CSV数据
+2. 绘制Recall-QPS曲线图
+3. 选择代表性参数
+4. 备份结果到论文仓库
