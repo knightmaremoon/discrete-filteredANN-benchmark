@@ -192,10 +192,16 @@ def parse_search_csv(csv_file):
 
 def build_index(dataset, M, M_beta, gamma, config, output_base):
     """构建索引"""
-    index_dir = f"{output_base}/indices/{dataset}"
-    os.makedirs(index_dir, exist_ok=True)
+    # C++程序会在output_path下再加一层{dataset}/子目录
+    # 所以这里传入indices目录（不包含dataset），由C++程序拼接
+    indices_base = f"{output_base}/indices"
+    os.makedirs(indices_base, exist_ok=True)
 
-    log_file = f"{index_dir}/M={M}_Mb={M_beta}_gamma={gamma}_build.log"
+    # 创建dataset子目录，避免C++写文件时报错
+    dataset_dir = f"{indices_base}/{dataset}"
+    os.makedirs(dataset_dir, exist_ok=True)
+
+    log_file = f"{dataset_dir}/M={M}_Mb={M_beta}_gamma={gamma}_build.log"
 
     data_dir = config['data_dir']
     N = config['N']
@@ -203,7 +209,7 @@ def build_index(dataset, M, M_beta, gamma, config, output_base):
     cmd = [
         '../build/demos/build_acorn_index',
         str(N), str(gamma), f"{data_dir}/{dataset}_base.fvecs",
-        str(M), str(M_beta), index_dir, dataset
+        str(M), str(M_beta), indices_base, dataset
     ]
 
     env = os.environ.copy()
@@ -218,7 +224,7 @@ def build_index(dataset, M, M_beta, gamma, config, output_base):
                          timeout=3600)
 
         build_time = time.time() - start_time
-        index_path = f"{index_dir}/hybrid_M={M}_Mb={M_beta}_gamma={gamma}.json"
+        index_path = f"{dataset_dir}/hybrid_M={M}_Mb={M_beta}_gamma={gamma}.json"
         index_size = get_index_size(index_path)
 
         return True, build_time, index_size
@@ -235,7 +241,8 @@ def build_index(dataset, M, M_beta, gamma, config, output_base):
 
 def search_index(dataset, M, M_beta, gamma, scenario, config, output_base):
     """测试索引搜索性能"""
-    index_dir = f"{output_base}/indices/{dataset}"
+    # C++程序期望index_path是不包含dataset的基础目录
+    indices_base = f"{output_base}/indices"
     results_dir = f"{output_base}/results/{dataset}/{scenario}"
     os.makedirs(results_dir, exist_ok=True)
 
@@ -247,7 +254,7 @@ def search_index(dataset, M, M_beta, gamma, scenario, config, output_base):
     cmd = [
         '../build/demos/search_acorn_index',
         str(N), str(gamma), dataset,
-        str(M), str(M_beta), index_dir, scenario, results_dir,
+        str(M), str(M_beta), indices_base, scenario, results_dir,
         f"{data_dir}/{dataset}_base.fvecs",
         f"{data_dir}/label_base.txt",
         f"{data_dir}/{dataset}_query_{scenario}.fvecs",

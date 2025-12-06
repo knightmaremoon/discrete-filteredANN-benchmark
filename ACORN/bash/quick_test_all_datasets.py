@@ -84,7 +84,10 @@ def check_files(dataset, config):
 
 def build_index(dataset, M, M_beta, gamma, config, output_dir):
     """构建索引"""
+    # C++程序会在output_dir下创建{dataset}子目录，需要确保父目录存在
     os.makedirs(output_dir, exist_ok=True)
+    # 同时创建dataset子目录，避免"No such file or directory"错误
+    os.makedirs(f"{output_dir}/{dataset}", exist_ok=True)
 
     data_dir = config['data_dir']
     N = config['N']
