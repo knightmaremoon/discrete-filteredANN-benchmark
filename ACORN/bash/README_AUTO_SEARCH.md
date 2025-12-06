@@ -41,12 +41,24 @@ python auto_param_search_arxiv.py
 
 ### 如果想保留已构建的索引，只重新测试：
 
-只删除summary.csv，保留progress.json：
+**推荐做法**：保留旧summary.csv，脚本会自动恢复build_time和index_size
 ```bash
-rm -f ../data/param_search_arxiv/summary.csv
-# 索引文件会被检测到并跳过构建
-# 但搜索会重新执行，这次能正确读取Recall
+# 不删除任何文件，直接重新运行
+python auto_param_search_arxiv.py
+
+# 脚本会：
+# 1. 从旧summary.csv读取之前的构建信息（build_time, index_size）
+# 2. 检测索引文件是否完整（>1KB）
+# 3. 跳过已完成的构建，只重新运行搜索
+# 4. 生成新的summary.csv包含完整metrics
 ```
+
+### 构建中断保护（新增功能）
+
+脚本现在会自动检测并处理构建中断：
+- 索引文件不完整（<1KB）→ 自动重建
+- progress.json有记录但文件损坏 → 自动重建
+- 保留旧summary中的build_time和index_size → 避免数据丢失
 
 ## 📊 预期输出
 
