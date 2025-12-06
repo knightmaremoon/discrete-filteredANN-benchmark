@@ -1,0 +1,4 @@
+[0.000 s] Index Params -- M: 32, M_beta: 48, N: 132687, gamma: 4
+Create gamma index in time: 53.8592
+Create gamma=1 index in time: 6.78565
+

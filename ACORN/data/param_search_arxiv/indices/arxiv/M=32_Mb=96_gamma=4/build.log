@@ -1,0 +1,2 @@
+terminate called after throwing an instance of 'faiss::FaissException'
+  what():  Error in void faiss::ACORN::set_default_probas(int, float, int, int) at /home/remote/u7905817/benchmarks/discrete/ACORN/faiss/impl/ACORN.cpp:160: M_beta must be less than 2*M*gamma
