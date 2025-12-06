@@ -87,7 +87,7 @@ def test_full_workflow():
     build_log = f"{INDEX_DIR}/build.log"
 
     build_cmd = [
-        './build/demos/build_acorn_index',
+        '../build/demos/build_acorn_index',
         str(N), str(TEST_GAMMA),
         f"{DATA_DIR}/arxiv_base.fvecs",
         str(TEST_M), str(TEST_M_BETA),
@@ -127,7 +127,7 @@ def test_full_workflow():
         log(f"   查看日志: cat {build_log}")
         return False
     except FileNotFoundError:
-        log("   ❌ 找不到可执行文件 ./build/demos/build_acorn_index")
+        log("   ❌ 找不到可执行文件 ../build/demos/build_acorn_index")
         log("   请先编译项目: cd ACORN && mkdir build && cd build && cmake .. && make")
         return False
 
@@ -138,7 +138,7 @@ def test_full_workflow():
     search_log = f"{RESULT_DIR}/{DATASET}/{TEST_SCENARIO}/search.log"
 
     search_cmd = [
-        './build/demos/search_acorn_index',
+        '../build/demos/search_acorn_index',
         str(N), str(TEST_GAMMA), DATASET,
         str(TEST_M), str(TEST_M_BETA),
         INDEX_DIR, TEST_SCENARIO, RESULT_DIR,
