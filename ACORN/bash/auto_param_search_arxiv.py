@@ -31,10 +31,10 @@ OUTPUT_BASE = "/home/remote/u7905817/benchmarks/discrete/ACORN/data/param_search
 RESULTS_DIR = f"{OUTPUT_BASE}/results"
 INDEX_DIR = f"{OUTPUT_BASE}/indices"
 
-# 参数范围 - 针对arxiv（13万数据）优化
-Ms = list(range(12, 49, 4))           # [12, 16, 20, 24, 28, 32, 36, 40, 44, 48]
-M_betas = list(range(12, 65, 4))      # [12, 16, 20, ..., 60, 64]
-gammas = [1, 2, 4]                    # 测试3个gamma值
+# 参数范围 - 基于测试结果优化（gamma需要足够大才能达到Recall>0.80）
+Ms = [32, 48, 64]                     # [32, 48, 64] - 去掉过小的值
+M_betas = [48, 64, 96, 128]           # [48, 64, 96, 128] - 去掉过小的值
+gammas = [4, 8, 12, 24]               # [4, 8, 12, 24] - gamma>=4才能达到目标Recall
 
 # 搜索参数
 K = 10  # Top-K
