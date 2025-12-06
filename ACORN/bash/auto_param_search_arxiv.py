@@ -177,7 +177,7 @@ def build_index(M, M_beta, gamma):
     log_file = os.path.join(index_dir, 'build.log')
 
     cmd = [
-        './build/demos/build_acorn_index',
+        '../build/demos/build_acorn_index',
         str(N), str(gamma), BASE_FILE,
         str(M), str(M_beta), INDEX_DIR, DATASET
     ]
@@ -224,7 +224,7 @@ def search_index(M, M_beta, gamma, scenario):
     gt_path = f"{DATA_DIR}/arxiv_gt_{scenario}.txt"
 
     cmd = [
-        './build/demos/search_acorn_index',
+        '../build/demos/search_acorn_index',
         str(N), str(gamma), DATASET,
         str(M), str(M_beta), INDEX_DIR, scenario, RESULTS_DIR,
         BASE_FILE, BASE_LABEL_FILE,
