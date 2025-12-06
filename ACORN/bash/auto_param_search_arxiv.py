@@ -68,6 +68,29 @@ def save_progress(completed_tasks):
             'total': len(completed_tasks)
         }, f, indent=2)
 
+def load_build_info():
+    """从已有的summary.csv加载构建信息（用于恢复build_time和index_size）"""
+    build_info = {}  # {(M, M_beta, gamma): {'build_time': x, 'index_size': y}}
+
+    if os.path.exists(SUMMARY_FILE):
+        try:
+            with open(SUMMARY_FILE, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    key = (int(float(row['M'])), int(float(row['M_beta'])), int(float(row['gamma'])))
+                    if key not in build_info and row.get('build_time_s'):
+                        try:
+                            build_info[key] = {
+                                'build_time': float(row['build_time_s']),
+                                'index_size': float(row['index_size_mb'])
+                            }
+                        except:
+                            pass
+        except:
+            pass
+
+    return build_info
+
 def init_summary_file():
     """初始化汇总文件"""
     if not os.path.exists(SUMMARY_FILE):
@@ -257,6 +280,7 @@ def main():
     # 初始化
     init_summary_file()
     completed_tasks = load_progress()
+    build_info = load_build_info()  # 加载已有的构建信息
 
     # 计算总任务数
     total_tasks = 0
@@ -295,8 +319,17 @@ def main():
         # 步骤1: 构建索引（如果还没构建）
         build_key = (M, M_beta, gamma, 'build')
 
-        if build_key not in completed_tasks:
-            log(f"🔨 构建索引...")
+        # 检查索引文件是否存在且完整
+        index_path = f"{INDEX_DIR}/{DATASET}/hybrid_M={M}_Mb={M_beta}_gamma={gamma}.json"
+        index_exists = os.path.exists(index_path) and os.path.getsize(index_path) > 1000  # 至少1KB
+
+        if build_key not in completed_tasks or not index_exists:
+            if not index_exists and build_key in completed_tasks:
+                log(f"⚠️  索引文件损坏或不完整，重新构建...")
+                completed_tasks.discard(build_key)  # 从已完成列表移除
+            else:
+                log(f"🔨 构建索引...")
+
             success, build_time, index_size = build_index(M, M_beta, gamma)
 
             if success:
@@ -308,8 +341,17 @@ def main():
                 continue
         else:
             log(f"⏭️  索引已存在，跳过构建")
-            build_time = 0
-            index_size = 0
+            # 尝试从之前的summary恢复构建信息
+            param_key = (M, M_beta, gamma)
+            if param_key in build_info:
+                build_time = build_info[param_key]['build_time']
+                index_size = build_info[param_key]['index_size']
+                log(f"   📋 恢复构建信息: {build_time:.1f}秒, {index_size:.1f}MB")
+            else:
+                # 如果没有历史数据，只能读取文件大小
+                build_time = 0  # 无法恢复
+                index_size = get_index_size(index_path)
+                log(f"   📏 索引大小: {index_size:.1f}MB (构建时间未记录)")
 
         # 步骤2: 测试所有场景
         for scenario in SCENARIOS:
